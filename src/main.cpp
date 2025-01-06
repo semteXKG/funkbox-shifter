@@ -19,27 +19,26 @@
 #include "pb.h"
 #include "pb_decode.h"
 #include "pb_encode.h"
-#define PRIMARY 1
-#if (PRIMARY)
-    #define CONFIG_SSID "funkbox-car-prim"
-    #define CONFIG_PWD "funkbox-car-prim"
-#else
-    #define CONFIG_SSID "funkbox-car-sec"
-    #define CONFIG_PWD "funkbox-car-sec"
-#endif
+#include "FastLED.h"
+
+#define CONFIG_SSID "funkbox-car-prim"
+#define CONFIG_PWD "funkbox-car-prim"
 
 #define UDP_PORT 3333
 
 #define MULTICAST_TTL 1
 #define MULTICAST_IPV4_ADDR "232.10.11.12"
 
+#define NUM_LEDS 10
+#define DATA_PIN 12
+CRGB leds[NUM_LEDS];
+CRGB led_colors[] = { CRGB::Blue, CRGB::Blue, CRGB::Blue, CRGB::Green, CRGB::Green, CRGB::Yellow, CRGB::Yellow, CRGB::Yellow, CRGB::Red, CRGB::Red};
+int rpm_on[] = {500, 2000, 3000, 3500, 4000, 4500, 5000, 5300, 5500, 6000};
+
 Proto_Mcu_Data persistent_state;
 Proto_Mcu_Data incoming_state; 
 
-void socketserver_send_lora(Proto_LoRa_Data message);
-void socketserver_send(Proto_Message message);
 void handle_proto(uint8_t* message, size_t length);
-void handle_command(char* message);
 Proto_Update_Data create_status_update();
 
 //
@@ -249,6 +248,16 @@ static void listen(void *pvParameters)
   close(sock);
 }
 
+void handle_data_update(Proto_Mcu_Data new_data) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if(new_data.odb2.rpm > rpm_on[i]) {
+      leds[i] = led_colors[i];
+    } else {
+      leds[i] = CRGB::Black;
+    }
+    FastLED.show();
+  }
+}
 
 void handle_proto(uint8_t* message, size_t length) {
   Proto_Message decoded_message = Proto_Message_init_zero;
@@ -259,28 +268,11 @@ void handle_proto(uint8_t* message, size_t length) {
     return;
   }
   if(decoded_message.has_mcu_data) {
+    handle_data_update(decoded_message.mcu_data);
+
     persistent_state = decoded_message.mcu_data;
+    
   }
-}
-
-Proto_Update_Data create_status_update() {
-  Proto_Update_Data data = Proto_Update_Data_init_zero;
-  data.has_gas_sensor = persistent_state.has_gas;
-  data.has_oil_sensor = persistent_state.has_oil;
-  data.has_water_sensor = persistent_state.has_water;
-  data.has_stint_data = persistent_state.has_stint;
-  data.has_lap_data = persistent_state.has_lap_data;
-
-  data.has_gps_data = persistent_state.has_gps;
-  data.gps_data = persistent_state.gps;
-
-  data.gas_sensor = persistent_state.gas;
-  data.water_sensor = persistent_state.water;
-  data.oil_sensor = persistent_state.oil;
-  data.stint_data = persistent_state.stint;
-  data.lap_data = persistent_state.lap_data;
-
-  return data;
 }
 
 void socketserver_start() {
@@ -295,27 +287,23 @@ void socketserver_start() {
 //
 //
 
-void print_status() {
-    Serial.printf("\n\n----------------------------------------------------------\n");
-    Serial.printf("|--------------------------------------------------------|\n");
-    #if PRIMARY
-        Serial.printf("|----PRIMARY---PRIMARY---PRIMARY---PRIMARY---PRIMARY-----|\n");
-    #else
-        Serial.printf("|-----SECONDARY---SECONDARY---SECONDARY---SECONDARTY-----|\n");
-    #endif
-    Serial.printf("|--------------------------------------------------------|\n");
-    Serial.printf("----------------------------------------------------------\n");
-}
-
 SET_LOOP_TASK_STACK_SIZE(1024 * 16);
+
+void fastled_setup() {
+  FastLED.addLeds<WS2811, DATA_PIN, RGB>(leds, NUM_LEDS);
+  FastLED.setBrightness(100);
+}
 
 void setup()
 {
+  Serial.begin(115200);
+  Serial.printf("Starting up\n");
+  fastled_setup(); 
   wlan_setup();
   socketserver_start();
-  print_status();
 }
 
 void loop() 
 {
+  
 }
