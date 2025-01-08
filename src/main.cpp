@@ -32,7 +32,7 @@
 #define NUM_LEDS 10
 #define DATA_PIN 12
 CRGB leds[NUM_LEDS];
-CRGB led_colors[] = { CRGB::Blue, CRGB::Blue, CRGB::Blue, CRGB::Green, CRGB::Green, CRGB::Yellow, CRGB::Yellow, CRGB::Yellow, CRGB::Red, CRGB::Red};
+CRGB led_colors[] = { CRGB::Blue, CRGB::Green, CRGB::Green, CRGB::Yellow, CRGB::Yellow, CRGB::Yellow, CRGB::Red, CRGB::Red, CRGB::Red, CRGB::Red};
 int rpm_on[] = {500, 2000, 3000, 3500, 4000, 4500, 5000, 5300, 5500, 6000};
 
 Proto_Mcu_Data persistent_state;
@@ -248,17 +248,6 @@ static void listen(void *pvParameters)
   close(sock);
 }
 
-void handle_data_update(Proto_Mcu_Data new_data) {
-  for (int i = 0; i < NUM_LEDS; i++) {
-    if(new_data.odb2.rpm > rpm_on[i]) {
-      leds[i] = led_colors[i];
-    } else {
-      leds[i] = CRGB::Black;
-    }
-    FastLED.show();
-  }
-}
-
 void handle_proto(uint8_t* message, size_t length) {
   Proto_Message decoded_message = Proto_Message_init_zero;
   pb_istream_t stream = pb_istream_from_buffer(message, length);
@@ -268,10 +257,8 @@ void handle_proto(uint8_t* message, size_t length) {
     return;
   }
   if(decoded_message.has_mcu_data) {
-    handle_data_update(decoded_message.mcu_data);
-
+    //handle_data_update(decoded_message.mcu_data);
     persistent_state = decoded_message.mcu_data;
-    
   }
 }
 
@@ -289,9 +276,77 @@ void socketserver_start() {
 
 SET_LOOP_TASK_STACK_SIZE(1024 * 16);
 
+
+long flashing_since = -1;
+boolean should_show_color(uint32_t rpm, int32_t red_flash) {
+  if (rpm < red_flash) {
+    flashing_since = -1;
+    return true;
+  }
+
+  if (flashing_since == -1) {
+    flashing_since = esp_timer_get_time();
+  }
+
+  long delta = esp_timer_get_time() - flashing_since;
+  Serial.printf("Delta is: %ld\n", delta);
+  return (((delta / (1000*250)) % 2) == 0);
+}
+
+void left_to_right(Proto_Mcu_Data data) {
+  Proto_Shiftlight_Config config = data.shiftlight_config;
+  bool show = should_show_color(data.odb2.rpm, config.rpm_red_flash);
+  Serial.printf("Show is: %d\n", show);
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if(data.odb2.rpm > config.rpm_limits[i]) {
+      leds[i] = show ? led_colors[i] : CRGB::Black;
+    } else {
+      leds[i] = CRGB::Black;
+    }
+  }
+}
+
+void both_sides(Proto_Mcu_Data data) {
+  Proto_Shiftlight_Config config = data.shiftlight_config;
+  bool show = should_show_color(data.odb2.rpm, config.rpm_red_flash);
+  for (int i = 0; i < NUM_LEDS / 2; i++) {
+    if(data.odb2.rpm > config.rpm_limits[i*2]) {
+      leds[i] = show ? led_colors[i*2] : CRGB::Black;
+      leds[NUM_LEDS-1-i] = show ? led_colors[i*2] : CRGB::Black;
+    } else {
+      leds[i] = CRGB::Black;
+      leds[NUM_LEDS-1-i] = CRGB::Black;
+    }
+  }
+}
+
+void update_leds(Proto_Mcu_Data new_data) {
+  Proto_Shiftlight_Config config = new_data.shiftlight_config;
+  FastLED.setBrightness(config.brightness);
+  switch (config.mode) {
+    case Shiftlight_Mode_LEFT_RIGHT:
+      left_to_right(new_data);
+    break;
+    case Shiftlight_Mode_BOTH_SIDES:
+      both_sides(new_data);
+    break;
+    default:
+    break;
+  }
+  
+  FastLED.show();
+}
+
 void fastled_setup() {
   FastLED.addLeds<WS2811, DATA_PIN, RGB>(leds, NUM_LEDS);
   FastLED.setBrightness(100);
+}
+
+void update_leds(void* pv) {
+  while(true) {
+    update_leds(persistent_state);
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+  }
 }
 
 void setup()
@@ -301,6 +356,7 @@ void setup()
   fastled_setup(); 
   wlan_setup();
   socketserver_start();
+  xTaskCreate(&update_leds, "update LEDS", 8192, NULL, 5, NULL);
 }
 
 void loop() 
