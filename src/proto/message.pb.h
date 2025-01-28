@@ -147,6 +147,8 @@ typedef struct _Proto_Lora_Config {
 typedef struct _Proto_Odb2_Data {
     bool has_rpm;
     uint32_t rpm;
+    bool has_coolant;
+    int32_t coolant;
 } Proto_Odb2_Data;
 
 typedef struct _Proto_Lora_Stats {
@@ -193,9 +195,12 @@ typedef struct _Proto_Mcu_Data {
     Proto_Stint_Data stint;
     bool has_lap_data;
     Proto_Lap_Data lap_data;
-    pb_callback_t events;
-    pb_callback_t outgoing_commands;
-    pb_callback_t incoming_commands;
+    pb_size_t events_count;
+    Proto_Event events[5];
+    pb_size_t outgoing_commands_count;
+    Proto_Command outgoing_commands[5];
+    pb_size_t incoming_commands_count;
+    Proto_Command incoming_commands[5];
     bool has_gps;
     Proto_Gps_Data gps;
     bool has_gas_warn;
@@ -208,6 +213,8 @@ typedef struct _Proto_Mcu_Data {
     Proto_Odb2_Data odb2;
     bool has_shiftlight_config;
     Proto_Shiftlight_Config shiftlight_config;
+    bool has_pitstop_since;
+    int64_t pitstop_since;
 } Proto_Mcu_Data;
 
 typedef struct _Proto_Update_Data {
@@ -327,11 +334,11 @@ extern "C" {
 #define Proto_Lap_Data_init_default              {false, 0, false, 0, false, 0, false, 0, 0, {Proto_Lap_init_default, Proto_Lap_init_default, Proto_Lap_init_default, Proto_Lap_init_default, Proto_Lap_init_default}}
 #define Proto_Gps_Data_init_default              {false, 0, false, 0, false, 0}
 #define Proto_Lora_Config_init_default           {false, 0, false, 0, false, 0}
-#define Proto_Odb2_Data_init_default             {false, 0}
+#define Proto_Odb2_Data_init_default             {false, 0, false, 0}
 #define Proto_Lora_Stats_init_default            {false, 0, false, 0, false, 0}
 #define Proto_Shiftlight_Config_init_default     {false, _Shiftlight_Mode_MIN, false, 0, false, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 #define Proto_Button_init_default                {false, _Button_Name_MIN, false, _Button_State_MIN, false, 0}
-#define Proto_Mcu_Data_init_default              {false, 0, false, 0, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Stint_Data_init_default, false, Proto_Lap_Data_init_default, {{NULL}, NULL}, {{NULL}, NULL}, {{NULL}, NULL}, false, Proto_Gps_Data_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Lora_Config_init_default, false, Proto_Odb2_Data_init_default, false, Proto_Shiftlight_Config_init_default}
+#define Proto_Mcu_Data_init_default              {false, 0, false, 0, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Stint_Data_init_default, false, Proto_Lap_Data_init_default, 0, {Proto_Event_init_default, Proto_Event_init_default, Proto_Event_init_default, Proto_Event_init_default, Proto_Event_init_default}, 0, {Proto_Command_init_default, Proto_Command_init_default, Proto_Command_init_default, Proto_Command_init_default, Proto_Command_init_default}, 0, {Proto_Command_init_default, Proto_Command_init_default, Proto_Command_init_default, Proto_Command_init_default, Proto_Command_init_default}, false, Proto_Gps_Data_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Lora_Config_init_default, false, Proto_Odb2_Data_init_default, false, Proto_Shiftlight_Config_init_default, false, 0}
 #define Proto_Update_Data_init_default           {false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Car_Sensor_init_default, false, Proto_Lap_Data_init_default, false, Proto_Stint_Data_init_default, false, Proto_Gps_Data_init_default, false, Proto_Odb2_Data_init_default}
 #define Proto_Ack_Data_init_default              {false, 0}
 #define Proto_LoRa_Data_init_default             {false, 0u, false, false, false, 0, false, Proto_Update_Data_init_default, false, Proto_Command_init_default, false, Proto_Ack_Data_init_default}
@@ -344,11 +351,11 @@ extern "C" {
 #define Proto_Lap_Data_init_zero                 {false, 0, false, 0, false, 0, false, 0, 0, {Proto_Lap_init_zero, Proto_Lap_init_zero, Proto_Lap_init_zero, Proto_Lap_init_zero, Proto_Lap_init_zero}}
 #define Proto_Gps_Data_init_zero                 {false, 0, false, 0, false, 0}
 #define Proto_Lora_Config_init_zero              {false, 0, false, 0, false, 0}
-#define Proto_Odb2_Data_init_zero                {false, 0}
+#define Proto_Odb2_Data_init_zero                {false, 0, false, 0}
 #define Proto_Lora_Stats_init_zero               {false, 0, false, 0, false, 0}
 #define Proto_Shiftlight_Config_init_zero        {false, _Shiftlight_Mode_MIN, false, 0, false, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}}
 #define Proto_Button_init_zero                   {false, _Button_Name_MIN, false, _Button_State_MIN, false, 0}
-#define Proto_Mcu_Data_init_zero                 {false, 0, false, 0, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Stint_Data_init_zero, false, Proto_Lap_Data_init_zero, {{NULL}, NULL}, {{NULL}, NULL}, {{NULL}, NULL}, false, Proto_Gps_Data_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Lora_Config_init_zero, false, Proto_Odb2_Data_init_zero, false, Proto_Shiftlight_Config_init_zero}
+#define Proto_Mcu_Data_init_zero                 {false, 0, false, 0, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Stint_Data_init_zero, false, Proto_Lap_Data_init_zero, 0, {Proto_Event_init_zero, Proto_Event_init_zero, Proto_Event_init_zero, Proto_Event_init_zero, Proto_Event_init_zero}, 0, {Proto_Command_init_zero, Proto_Command_init_zero, Proto_Command_init_zero, Proto_Command_init_zero, Proto_Command_init_zero}, 0, {Proto_Command_init_zero, Proto_Command_init_zero, Proto_Command_init_zero, Proto_Command_init_zero, Proto_Command_init_zero}, false, Proto_Gps_Data_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Lora_Config_init_zero, false, Proto_Odb2_Data_init_zero, false, Proto_Shiftlight_Config_init_zero, false, 0}
 #define Proto_Update_Data_init_zero              {false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Car_Sensor_init_zero, false, Proto_Lap_Data_init_zero, false, Proto_Stint_Data_init_zero, false, Proto_Gps_Data_init_zero, false, Proto_Odb2_Data_init_zero}
 #define Proto_Ack_Data_init_zero                 {false, 0}
 #define Proto_LoRa_Data_init_zero                {false, 0, false, 0, false, 0, false, Proto_Update_Data_init_zero, false, Proto_Command_init_zero, false, Proto_Ack_Data_init_zero}
@@ -386,6 +393,7 @@ extern "C" {
 #define Proto_Lora_Config_spreading_factor_tag   2
 #define Proto_Lora_Config_output_power_tag       3
 #define Proto_Odb2_Data_rpm_tag                  1
+#define Proto_Odb2_Data_coolant_tag              2
 #define Proto_Lora_Stats_rssi_tag                1
 #define Proto_Lora_Stats_snr_tag                 2
 #define Proto_Lora_Stats_receive_time_tag        3
@@ -412,6 +420,7 @@ extern "C" {
 #define Proto_Mcu_Data_lora_config_tag           14
 #define Proto_Mcu_Data_odb2_tag                  15
 #define Proto_Mcu_Data_shiftlight_config_tag     16
+#define Proto_Mcu_Data_pitstop_since_tag         17
 #define Proto_Update_Data_water_sensor_tag       1
 #define Proto_Update_Data_oil_sensor_tag         2
 #define Proto_Update_Data_gas_sensor_tag         3
@@ -497,7 +506,8 @@ X(a, STATIC,   OPTIONAL, INT32,    output_power,      3)
 #define Proto_Lora_Config_DEFAULT NULL
 
 #define Proto_Odb2_Data_FIELDLIST(X, a) \
-X(a, STATIC,   OPTIONAL, UINT32,   rpm,               1)
+X(a, STATIC,   OPTIONAL, UINT32,   rpm,               1) \
+X(a, STATIC,   OPTIONAL, INT32,    coolant,           2)
 #define Proto_Odb2_Data_CALLBACK NULL
 #define Proto_Odb2_Data_DEFAULT NULL
 
@@ -531,16 +541,17 @@ X(a, STATIC,   OPTIONAL, MESSAGE,  oil,               4) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  gas,               5) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  stint,             6) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  lap_data,          7) \
-X(a, CALLBACK, REPEATED, MESSAGE,  events,            8) \
-X(a, CALLBACK, REPEATED, MESSAGE,  outgoing_commands,   9) \
-X(a, CALLBACK, REPEATED, MESSAGE,  incoming_commands,  10) \
+X(a, STATIC,   REPEATED, MESSAGE,  events,            8) \
+X(a, STATIC,   REPEATED, MESSAGE,  outgoing_commands,   9) \
+X(a, STATIC,   REPEATED, MESSAGE,  incoming_commands,  10) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  gps,              11) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  gas_warn,         12) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  oil_warn,         13) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  lora_config,      14) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  odb2,             15) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  shiftlight_config,  16)
-#define Proto_Mcu_Data_CALLBACK pb_default_field_callback
+X(a, STATIC,   OPTIONAL, MESSAGE,  shiftlight_config,  16) \
+X(a, STATIC,   OPTIONAL, INT64,    pitstop_since,    17)
+#define Proto_Mcu_Data_CALLBACK NULL
 #define Proto_Mcu_Data_DEFAULT NULL
 #define Proto_Mcu_Data_water_MSGTYPE Proto_Car_Sensor
 #define Proto_Mcu_Data_oil_MSGTYPE Proto_Car_Sensor
@@ -656,13 +667,13 @@ extern const pb_msgdesc_t Proto_Message_msg;
 #define Proto_Gps_Data_size                      29
 #define Proto_Lap_Data_size                      149
 #define Proto_Lap_size                           22
-#define Proto_LoRa_Data_size                     328
+#define Proto_LoRa_Data_size                     339
 #define Proto_Lora_Config_size                   26
 #define Proto_Lora_Stats_size                    29
-#define Proto_Odb2_Data_size                     6
+#define Proto_Odb2_Data_size                     17
 #define Proto_Shiftlight_Config_size             134
 #define Proto_Stint_Data_size                    22
-#define Proto_Update_Data_size                   266
+#define Proto_Update_Data_size                   277
 
 #ifdef __cplusplus
 } /* extern "C" */

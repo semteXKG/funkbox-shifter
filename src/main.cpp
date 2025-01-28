@@ -61,6 +61,8 @@ void extract_credentials() {
 
 void wlan_setup() {
   Serial.print("[WIN] Starting");
+  extract_credentials();
+  Serial.printf("WLAN User %s, PW %s \n", WLAN_SSID_RES, WLAN_PWD_RES);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WLAN_SSID_RES, WLAN_PWD_RES);
   int retryCnt = 0;
@@ -288,6 +290,43 @@ void socketserver_start() {
 
 SET_LOOP_TASK_STACK_SIZE(1024 * 16);
 
+int create_checksum(Proto_Mcu_Data data) {
+  int event_chksum = 0;
+  int command_chksum = 0; 
+  for (int i = 0; i < data.events_count; i++) {
+    event_chksum += data.events[i].id;
+  }
+
+  for (int i = 0; i < data.incoming_commands_count; i++) {
+    command_chksum += data.incoming_commands->id;
+  }
+
+  return data.lap_data.lap_no + event_chksum + command_chksum;
+}
+
+long new_event_since = -1;
+long old_amount = -2;
+boolean should_show_new_event(int amount) {
+  if (old_amount == -2) {
+    old_amount = amount;
+    return false;
+  }
+
+  if (old_amount != amount) {
+    old_amount = amount;
+    new_event_since = esp_timer_get_time();
+  }
+
+  if(new_event_since == -1) {
+    return false;
+  }
+
+  if(new_event_since + 3000000 < esp_timer_get_time()) {
+    new_event_since = -1;
+    return false;
+  }
+  return true;
+}
 
 long flashing_since = -1;
 boolean should_show_color(uint32_t rpm, int32_t red_flash) {
@@ -308,13 +347,19 @@ boolean should_show_color(uint32_t rpm, int32_t red_flash) {
 void left_to_right(Proto_Mcu_Data data) {
   Proto_Shiftlight_Config config = data.shiftlight_config;
   bool show = should_show_color(data.odb2.rpm, config.rpm_red_flash);
-  Serial.printf("Show is: %d\n", show);
   for (int i = 0; i < NUM_LEDS; i++) {
     if(data.odb2.rpm > config.rpm_limits[i]) {
       leds[i] = show ? led_colors[i] : CRGB::Black;
     } else {
       leds[i] = CRGB::Black;
     }
+  }
+
+  if (should_show_new_event(create_checksum(data))) {
+      leds[0] = CRGB::White;
+      leds[1] = CRGB::White;
+      leds[8] = CRGB::White;
+      leds[9] = CRGB::White;
   }
 }
 
@@ -329,6 +374,13 @@ void both_sides(Proto_Mcu_Data data) {
       leds[i] = CRGB::Black;
       leds[NUM_LEDS-1-i] = CRGB::Black;
     }
+  }
+    
+  if (should_show_new_event(create_checksum(data))) {
+      leds[0] = CRGB::White;
+      leds[1] = CRGB::White;
+      leds[8] = CRGB::White;
+      leds[9] = CRGB::White;
   }
 }
 
